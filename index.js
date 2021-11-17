@@ -4,6 +4,8 @@ const cors = require('cors')
 require('dotenv').config();
 const admin = require("firebase-admin");
 const { MongoClient } = require('mongodb');
+const ObjectId = require('mongodb').ObjectId;
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const port = process.env.PORT || 5000
 
 // doctors-portal-e1ce1-firebase-adminsdk-7wz2k-40ed893dc7.json
@@ -55,6 +57,27 @@ async function run() {
           const appointment = req.body;
           const result = await appointmentCollection.insertOne(appointment);
           res.send(result)
+        });
+
+        app.put('/appointment/:id', async(req, res) => {
+          const id = req.params.id;
+          const payment = req.body;
+          const filter = {_id: ObjectId(id)};
+          const updateDoc = {
+            $set: {
+              payment: payment
+            }
+          };
+          const result = await appointmentCollection.updateOne(filter, updateDoc);
+          res.json(result);
+        })
+
+        app.get('/appointment/:id', async(req, res) => {
+          const id = req.params.id;
+          const query = {_id: ObjectId(id)};
+          const result = await appointmentCollection.findOne(query);
+          console.log(result);
+          res.json(result);
         })
 
         app.get('/users/:email', async(req, res) => {
@@ -102,6 +125,17 @@ async function run() {
             res.status(403).json({message: 'You do not have access make admin'})
           }
 
+        })
+
+        app.post('/create-payment-intent', async(req, res)=>{
+          const paymentInfo = req.body;
+          const amount = paymentInfo.price*100;
+          const paymentIntent = await stripe.paymentIntents.create({
+            currency: 'usd',
+            amount: amount,
+            payment_method_types: ['card']
+          });
+          res.json({clientSecret: paymentIntent.client_secret});
         })
 
 
